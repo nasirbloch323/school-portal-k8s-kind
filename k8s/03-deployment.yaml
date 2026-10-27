@@ -1,0 +1,132 @@
+# ============================================================
+# 03-deployment.yaml - Deployment (app chalane wala manager)
+# ============================================================
+# Deployment ek "manager" hai. Aap usko bolte hain:
+#   "Mujhe is image ke 2 Pods hamesha chahiye."
+# Phir wo khud:
+#   - 2 Pods bana ke chalata hai
+#   - agar koi Pod crash ho jaye to naya bana deta hai (self-healing)
+#   - naya version aaye to ek ek karke badalta hai bina website band kiye
+#     (rolling update)
+#
+# Pod = sab se chota unit, jisme aapka container chalta hai.
+
+apiVersion: apps/v1        # Deployment "apps" group ka hissa hai
+kind: Deployment
+metadata:
+  name: school-portal      # Deployment ka naam
+  namespace: school-portal # Hamare classroom ke andar
+  labels:
+    app: school-portal
+
+spec:
+  # ---- Kitne Pods chahiye? ----
+  # 2 rakhe taake ek mar jaye to doosra website chalata rahe.
+  # Real life mein yehi "high availability" kehlata hai.
+  replicas: 2
+
+  # ---- Update ka tareeqa ----
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0    # update ke dauran koi Pod kam nahi hona chahiye
+      maxSurge: 1          # update ke dauran 1 extra naya Pod bana sakte ho
+      # Matlab: pehle naya Pod chalao, jab wo ready ho jaye tab purana band karo.
+      # Is tarah users ko kabhi downtime nahi milta.
+
+  # ---- Selector: Deployment apne Pods ko kaise pehchane? ----
+  # Ye label dekh kar. Jis Pod par app=school-portal ka label hoga,
+  # wo is Deployment ka hai.
+  selector:
+    matchLabels:
+      app: school-portal
+
+  # ---- Template: Pod ka naqsha ----
+  # Deployment is naqshe se Pods ki copies banata hai.
+  template:
+    metadata:
+      labels:
+        app: school-portal   # !! Ye selector ke label se bilkul match hona chahiye
+        tier: frontend
+    spec:
+
+      # ---- Pod-level security ----
+      securityContext:
+        runAsNonRoot: true   # root user se chalna mana hai
+        runAsUser: 101       # nginx-unprivileged image ka nginx user ID
+        fsGroup: 101         # mounted files ka group
+
+      containers:
+        - name: nginx        # container ka naam (Pod ke andar)
+
+          # Hamari banayi hui image. Version (1.0) saaf likha hai, "latest" nahi.
+          image: school-portal:1.0
+
+          # IfNotPresent = agar image node par pehle se hai to wohi use karo,
+          # internet se download na karo. Kind mein hum image khud load karte hain
+          # (deploy.sh dekhein), is liye ye zaroori hai.
+          imagePullPolicy: IfNotPresent
+
+          # Container ka port (sirf information ke liye, nginx 8080 par sunta hai)
+          ports:
+            - name: http
+              containerPort: 8080
+
+          # ---- ConfigMap ko file bana kar lagana ----
+          volumeMounts:
+            - name: nginx-config                      # neeche "volumes" mein ye naam define hai
+              mountPath: /etc/nginx/conf.d/default.conf  # Pod ke andar file ka raasta
+              subPath: default.conf                   # ConfigMap ki sirf ye ek key, poora folder nahi
+              readOnly: true
+            # nginx ko kuch temporary files likhne ke liye jagah chahiye
+            # (kyunke neeche hum poora filesystem read-only kar rahe hain)
+            - name: tmp
+              mountPath: /tmp
+
+          # ---- Resources: kitna CPU/Memory chahiye ----
+          # Ye bohat zaroori hai! Ye na hon to ek Pod poore node ko kha sakta hai.
+          resources:
+            requests:            # "kam az kam itna mujhe do" (scheduler isi se Pod ki jagah chunta hai)
+              cpu: 50m           # 50m = 0.05 CPU core (1000m = 1 core)
+              memory: 32Mi       # 32 megabyte
+            limits:              # "is se zyada kabhi nahi milega"
+              cpu: 200m
+              memory: 64Mi       # isse zyada memory le to Pod kill ho jata hai (OOMKilled)
+
+          # ---- Health checks (probes) ----
+          # Kubernetes ko batate hain ke app theek hai ya nahi.
+
+          # Readiness: "kya tum traffic lene ke liye tayyar ho?"
+          # Fail ho to Pod ko Service ki list se nikal dete hain (traffic nahi jata).
+          readinessProbe:
+            httpGet:
+              path: /healthz     # ConfigMap mein banaya hua health raasta
+              port: http
+            initialDelaySeconds: 3   # start ke 3 second baad pehli check
+            periodSeconds: 5         # har 5 second baad dobara check
+
+          # Liveness: "kya tum zinda ho ya atak gaye ho?"
+          # Fail ho to Kubernetes Pod ko restart kar deta hai.
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+
+          # ---- Container-level security ----
+          securityContext:
+            allowPrivilegeEscalation: false  # zyada ikhtiyaar hasil karne ki ijazat nahi
+            readOnlyRootFilesystem: true     # container ki files badli nahi ja sakti (hacker ke liye mushkil)
+            capabilities:
+              drop: ["ALL"]                  # Linux ki sab special powers wapas le lo
+
+      # ---- Volumes: Pod ke storage ki list ----
+      volumes:
+        # ConfigMap ko volume bana diya (is se file bani, upar mount hui)
+        - name: nginx-config
+          configMap:
+            name: school-portal-nginx-config   # 02-configmap.yaml wala naam
+        # emptyDir = khali temporary folder, Pod ke saath hi khatam ho jata hai
+        - name: tmp
+          emptyDir: {}

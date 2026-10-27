@@ -1,0 +1,72 @@
+# ============================================================
+# 02-configmap.yaml - ConfigMap (settings ki file)
+# ============================================================
+# ConfigMap mein hum app ki settings (config files) Kubernetes mein rakhte hain,
+# image ke andar nahi.
+#
+# Real life ka faida:
+#   Agar nginx ki setting badalni ho to image dobara build nahi karni parti.
+#   Bas ConfigMap badlo aur Pods restart kar do. Dev/Prod ke liye alag
+#   settings bhi isi tarah lagti hain.
+#
+# Is ConfigMap ko Deployment (03 file) Pod ke andar file bana kar laga dega.
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: school-portal-nginx-config   # Deployment isi naam se ise dhoondega
+  namespace: school-portal           # Ye hamare "classroom" ke andar banega
+  labels:
+    app: school-portal
+
+# "data" mein key: value hota hai.
+# Key (default.conf) file ka naam ban jayegi, value uska content.
+data:
+  default.conf: |
+    # Ye asal nginx ki config hai. "|" ka matlab: neeche ka sara text jaisa hai waisa hi rakho.
+
+    # "server" block = ek website ki setting
+    server {
+
+        # nginx ko batao ke port 8080 par suno (unprivileged image ka port)
+        listen 8080;
+
+        # Server ka naam. "_" ka matlab: koi bhi naam aaye, ye server jawab dega.
+        server_name _;
+
+        # Website files kahan rakhi hain (Dockerfile mein yahin copy ki thin)
+        root /usr/share/nginx/html;
+
+        # Jab koi sirf "/" khole to pehle index.html dikhao
+        index index.html;
+
+        # ---- Security headers (browser ko hidayat) ----
+        # Browser page ko dusri site ke frame mein dikhane se roke (clickjacking se bachao)
+        add_header X-Frame-Options "SAMEORIGIN" always;
+        # Browser file ki type apni taraf se guess na kare
+        add_header X-Content-Type-Options "nosniff" always;
+
+        # Response ke headers mein nginx ka version na dikhao (hackers ko hint na mile)
+        server_tokens off;
+
+        # ---- Main raasta: website ke pages ----
+        location / {
+            # Pehle exact file dhoondo, phir folder, warna 404 do
+            try_files $uri $uri/ =404;
+        }
+
+        # ---- Health check raasta ----
+        # Kubernetes is raaste ko baar baar poochta hai: "kya tum zinda ho?"
+        # Ye sirf "OK" wapas karta hai. Ye Deployment ke probes use karte hain.
+        location /healthz {
+            access_log off;                      # health checks ke logs na bharo
+            return 200 "OK\n";                   # seedha 200 (success) wapas karo
+            add_header Content-Type text/plain;  # jawab plain text hai
+        }
+
+        # ---- CSS/images ke liye caching ----
+        # Browser in files ko 1 din ke liye yaad rakhe, website tez chalegi
+        location ~* \.(css|js|png|jpg|jpeg|gif|ico)$ {
+            expires 1d;
+        }
+    }

@@ -1,0 +1,45 @@
+# ============================================================
+# 04-service.yaml - Service (stable phone number)
+# ============================================================
+# Problem: Pods aate jate rehte hain aur har naye Pod ka IP badal jata hai.
+#          Aap kis IP par website kholen?
+# Hal:     Service ek STABLE address deta hai aur peeche jitne bhi Pods hon,
+#          unmein traffic baant deta hai (load balancing).
+#
+# School ki misal: Service "reception ka number" hai. Aap hamesha usi par
+# call karte hain, reception khud kisi free teacher ko call forward kar deta hai.
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: school-portal-svc
+  namespace: school-portal
+  labels:
+    app: school-portal
+
+spec:
+  # ---- Service ki type ----
+  # NodePort = node ka ek port khol deta hai taake cluster ke BAHAR se
+  # access ho sake. Kind (local testing) ke liye ye sab se aasan hai.
+  #
+  # Real cloud (AWS/GCP/Azure) mein aam taur par "LoadBalancer" ya "Ingress" use hota hai.
+  type: NodePort
+
+  # ---- Selector: traffic kin Pods ko bhejna hai? ----
+  # Jin Pods par ye label ho (Deployment ke template wala label).
+  selector:
+    app: school-portal
+
+  ports:
+    - name: http
+      protocol: TCP
+      port: 80          # Service ka apna port (cluster ke andar se is par call hoti hai)
+      targetPort: http  # Pod ka port. "http" naam hai jo Deployment mein 8080 ko diya tha
+      nodePort: 30080   # Node ka port. Ye kind config (00 file) ke containerPort se match hona chahiye
+                        # (NodePort ki allowed range: 30000-32767)
+
+# Poora raasta yaad rakhein:
+#   Browser: localhost:8080
+#     -> Kind node: 30080 (nodePort)
+#       -> Service: 80 (port)
+#         -> Pod: 8080 (targetPort/containerPort)

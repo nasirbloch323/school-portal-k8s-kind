@@ -1,0 +1,19 @@
+# ============================================================
+# 01-namespace.yaml - Namespace (alag kamra)
+# ============================================================
+# Namespace ko aise samjhein jaise school ka alag classroom.
+# Ek cluster mein bohat si apps hoti hain. Agar sab ek hi jagah rakhein
+# to gadbad ho jati hai. Isliye har app/team ka apna namespace banate hain.
+#
+# Faida:
+#   - Cheezein alag alag rehti hain (school-portal ki cheezein sirf yahan).
+#   - Ek dafa mein poora namespace delete karke sab saaf kar sakte hain.
+#   - Baad mein har namespace par alag permissions/limits laga sakte hain.
+
+apiVersion: v1          # Namespace Kubernetes ki core (buniyadi) cheez hai, is liye v1
+kind: Namespace         # Hum "Namespace" bana rahe hain
+metadata:
+  name: school-portal   # Namespace ka naam. Baaki sari files mein yehi naam use hoga.
+  labels:               # Labels = sticky notes, cheezon ko dhoondne/group karne ke liye
+    app: school-portal
+    env: dev

@@ -1,0 +1,39 @@
+# ============================================================
+# 00-kind-cluster.yaml - Kind cluster ka naqsha (config)
+# ============================================================
+# KIND = "Kubernetes IN Docker".
+# Ye aapke laptop par Docker containers ke andar ek chota sa Kubernetes
+# cluster bana deta hai. Practice aur testing ke liye perfect hai.
+#
+# Is file ko sirf EK dafa cluster banate waqt use karte hain:
+#   kind create cluster --name school --config k8s/00-kind-cluster.yaml
+
+# kind ka apna API version aur type
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+
+# Cluster ka naam hum command mein dete hain (--name school), yahan nahi.
+
+# "nodes" = cluster ki machines. Kind mein har node ek Docker container hota hai.
+nodes:
+
+  # Ye pehla node "control-plane" hai: cluster ka dimagh.
+  # Ye decide karta hai kaun sa Pod kahan chalega.
+  - role: control-plane
+
+    # ---- Port mapping: bahar se andar ka raasta ----
+    # Problem: cluster Docker ke andar band hai, aapka browser seedha
+    # andar nahi ja sakta. Hal: laptop ka ek port node ke port se jod do.
+    #
+    # Raasta ye banega:
+    #   Browser -> localhost:8080 (laptop) -> node ka port 30080 -> Service -> Pod
+    extraPortMappings:
+      - containerPort: 30080   # node ke andar ka port (ye Service ke nodePort se match hona chahiye)
+        hostPort: 8080         # aapke laptop ka port (browser mein localhost:8080 kholein)
+        protocol: TCP
+
+  # Ye do "worker" nodes hain: yahan hamare asli Pods chalte hain.
+  # Real cluster ki tarah multiple workers rakhe taake dikhe ke Pods
+  # alag alag machines par kaise phailte hain.
+  - role: worker
+  - role: worker
